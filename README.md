@@ -1,6 +1,6 @@
 # 🚚 Correo Service - Sistema Inteligente de Logística y Navegación
 
-![Correo Service Mockup](assets/mockup.png)
+![Correo Service Mockup](web-app/assets/mockup.png)
 
 **Correo Service** es una solución avanzada de logística diseñada específicamente para optimizadores de rutas y personal de entregas. Esta aplicación web progresiva (PWA) combina la potencia de algoritmos de optimización de rutas con un sistema de navegación GPS guiado por voz, todo dentro de una interfaz premium, fluida y orientada a dispositivos móviles.
 
