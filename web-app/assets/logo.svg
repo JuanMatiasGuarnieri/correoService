@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="100%" height="100%">
+  <defs>
+    <!-- Define the premium gradient matching the mockup -->
+    <linearGradient id="correoGrad" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#3b82f6" /> <!-- Vibrant Blue -->
+      <stop offset="50%" stop-color="#06b6d4" /> <!-- Electric Cyan -->
+      <stop offset="100%" stop-color="#10b981" /> <!-- Emerald Green -->
+    </linearGradient>
+    
+    <!-- Shadow filter for a premium glowing/neon look -->
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="2" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+
+  <g filter="url(#glow)">
+    <!-- Speed Lines Trails on the left, styled to fade into the letter C -->
+    <rect x="10" y="44" width="20" height="4" rx="2" fill="url(#correoGrad)" opacity="0.6" />
+    <rect x="4" y="56" width="24" height="4" rx="2" fill="url(#correoGrad)" opacity="0.9" />
+    <rect x="12" y="68" width="16" height="4" rx="2" fill="url(#correoGrad)" opacity="0.5" />
+
+    <!-- Main Stylized C Curve -->
+    <path d="
+      M 75,32 
+      A 28,28 0 1,0 75,88 
+      L 75,76 
+      A 16,16 0 1,1 75,44 
+      Z" 
+      fill="url(#correoGrad)" />
+
+    <!-- Truck Cargo Body (seamlessly integrated with the upper & lower arms of the C) -->
+    <rect x="56" y="44" width="22" height="22" rx="2" fill="url(#correoGrad)" />
+    
+    <!-- Speed lines cutouts on the cargo box for dynamic motion effect -->
+    <rect x="52" y="48" width="8" height="2" rx="1" fill="#0f172a" opacity="0.25" />
+    <rect x="49" y="54" width="10" height="2" rx="1" fill="#0f172a" opacity="0.25" />
+    <rect x="54" y="60" width="6" height="2" rx="1" fill="#0f172a" opacity="0.25" />
+
+    <!-- Truck Cabin (fused on the right side) -->
+    <path d="
+      M 77,46 
+      L 89,46 
+      A 3,3 0 0,1 92,49 
+      L 95,57 
+      A 2,2 0 0,1 93,59 
+      L 77,59 
+      Z" 
+      fill="url(#correoGrad)" />
+      
+    <!-- Cabin Window Cutout (White glass color with opacity) -->
+    <path d="
+      M 80,48 
+      L 86,48 
+      L 88,53 
+      L 80,53 
+      Z" 
+      fill="#ffffff" opacity="0.8" />
+
+    <!-- Wheels (integrated nicely with a custom dark cutout and glowing ring) -->
+    <!-- Wheel 1 (Cargo) -->
+    <circle cx="64" cy="70" r="5" fill="#0f172a" stroke="url(#correoGrad)" stroke-width="2.5" />
+    <circle cx="64" cy="70" r="1.5" fill="#ffffff" />
+    
+    <!-- Wheel 2 (Cabin) -->
+    <circle cx="85" cy="70" r="5" fill="#0f172a" stroke="url(#correoGrad)" stroke-width="2.5" />
+    <circle cx="85" cy="70" r="1.5" fill="#ffffff" />
+  </g>
+</svg>

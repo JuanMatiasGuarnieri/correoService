@@ -1,0 +1,1009 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monitoreo de Flotas - Guarnieri Network</title>
+    
+    <!-- Favicon (Vector SVG Logo) -->
+    <link rel="icon" type="image/svg+xml" href="assets/logo.svg">
+    
+    <!-- Manifest for standalone PWA installation -->
+    <link rel="manifest" href="manifest-central.json">
+    
+    <!-- Google Fonts (Outfit) -->
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+    
+    <!-- Leaflet Map library CSS/JS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <style>
+        :root {
+            --bg-color: #0b0f19;
+            --card-bg: rgba(17, 24, 39, 0.65);
+            --card-border: rgba(255, 255, 255, 0.08);
+            --accent-cyan: #06b6d4;
+            --accent-indigo: #4f46e5;
+            --accent-green: #10b981;
+            --accent-orange: #f97316;
+            --text-main: #f3f4f6;
+            --text-dim: #9ca3af;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Outfit', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body, html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+        }
+
+        #map {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+
+        /* Ambient glowing layers */
+        .ambient-glow {
+            position: absolute;
+            width: 300px;
+            height: 300px;
+            background: radial-gradient(circle, rgba(6, 182, 212, 0.15) 0%, rgba(0,0,0,0) 70%);
+            z-index: 2;
+            pointer-events: none;
+        }
+        .glow-top-left { top: -100px; left: -100px; }
+
+        /* General Glass Card Style */
+        .glass-card {
+            background: var(--card-bg);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--card-border);
+            border-radius: 20px;
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+            z-index: 10;
+            transition: all 0.3s ease;
+        }
+
+        /* Sidebar Panels */
+        .panel-container {
+            position: absolute;
+            top: 24px;
+            bottom: 24px;
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            pointer-events: none;
+        }
+
+        .panel-container * {
+            pointer-events: auto;
+        }
+
+        .left-panel {
+            left: 24px;
+            width: 380px;
+        }
+
+        .right-panel {
+            right: 24px;
+            width: 340px;
+        }
+
+        /* Header branding styles */
+        .panel-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid var(--card-border);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .brand-logo {
+            width: 36px;
+            height: 36px;
+            filter: drop-shadow(0 2px 8px rgba(6, 182, 212, 0.4));
+        }
+
+        .brand-title {
+            font-size: 1.1rem;
+            font-weight: 800;
+            line-height: 1;
+            letter-spacing: 0.5px;
+            color: white;
+        }
+
+        .brand-subtitle {
+            font-size: 0.65rem;
+            font-weight: 600;
+            letter-spacing: 2px;
+            color: var(--text-dim);
+            text-transform: uppercase;
+        }
+
+        /* Scrollable body */
+        .panel-body {
+            flex: 1;
+            overflow-y: auto;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        /* Hide scrollbars but keep functionality */
+        .panel-body::-webkit-scrollbar {
+            width: 4px;
+        }
+        .panel-body::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+        }
+
+        /* Status LED indicator badges */
+        .online-status-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.65rem;
+            font-weight: 700;
+            padding: 4px 10px;
+            border-radius: 20px;
+            letter-spacing: 0.5px;
+        }
+
+        .online-status-indicator.online {
+            color: var(--accent-cyan);
+            background: rgba(6, 182, 212, 0.1);
+            border: 1px solid rgba(6, 182, 212, 0.2);
+        }
+
+        .online-status-indicator.offline {
+            color: var(--text-dim);
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .status-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+        }
+
+        .status-dot.online {
+            background: var(--accent-cyan);
+            box-shadow: 0 0 8px var(--accent-cyan);
+            animation: statusPulse 2s infinite;
+        }
+
+        .status-dot.offline {
+            background: var(--text-dim);
+        }
+
+        @keyframes statusPulse {
+            0% { transform: scale(0.9); opacity: 0.8; }
+            50% { transform: scale(1.25); opacity: 1; }
+            100% { transform: scale(0.9); opacity: 0.8; }
+        }
+
+        /* Vehicle Card styling */
+        .vehicle-card {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.04);
+            border-radius: 16px;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            transition: all 0.2s;
+        }
+
+        .vehicle-card:hover {
+            border-color: rgba(6, 182, 212, 0.15);
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+        .vehicle-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .vehicle-title {
+            font-size: 0.85rem;
+            font-weight: 700;
+            color: white;
+        }
+
+        .vehicle-param {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.75rem;
+        }
+
+        .param-label {
+            color: var(--text-dim);
+        }
+
+        .param-value {
+            color: white;
+            font-weight: 600;
+        }
+
+        /* Navigation Route Steps list */
+        .route-stops-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-top: 8px;
+        }
+
+        .route-stop-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: rgba(255, 255, 255, 0.01);
+            border: 1px solid rgba(255, 255, 255, 0.03);
+            border-radius: 12px;
+            padding: 10px 14px;
+            font-size: 0.75rem;
+        }
+
+        .stop-circle {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 0.65rem;
+            flex-shrink: 0;
+        }
+
+        .stop-circle.base {
+            background: rgba(16, 185, 129, 0.15);
+            border: 1px solid rgba(16, 185, 129, 0.4);
+            color: var(--accent-green);
+        }
+
+        .stop-circle.pending {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: var(--text-dim);
+        }
+
+        .stop-circle.active {
+            background: rgba(6, 182, 212, 0.15);
+            border: 1px solid rgba(6, 182, 212, 0.4);
+            color: var(--accent-cyan);
+            animation: statusPulse 2.5s infinite;
+        }
+
+        .stop-circle.completed {
+            background: rgba(16, 185, 129, 0.2);
+            border: 1px solid rgba(16, 185, 129, 0.5);
+            color: var(--accent-green);
+        }
+
+        /* Log Event Feed styling */
+        .event-log-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 18px;
+            gap: 12px;
+        }
+
+        .log-title {
+            font-size: 0.75rem;
+            font-weight: 800;
+            letter-spacing: 1px;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+            padding-bottom: 8px;
+        }
+
+        .log-feed {
+            flex: 1;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            font-family: monospace;
+            font-size: 0.7rem;
+            color: #10b981;
+        }
+
+        .log-feed::-webkit-scrollbar {
+            width: 4px;
+        }
+        .log-feed::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 4px;
+        }
+
+        .log-item {
+            line-height: 1.4;
+            animation: logFade 0.3s ease-out;
+            padding: 4px 6px;
+            border-radius: 4px;
+            background: rgba(255, 255, 255, 0.01);
+            border-left: 2px solid rgba(16, 185, 129, 0.3);
+        }
+
+        .log-item.neutral {
+            color: var(--text-dim);
+            border-left-color: rgba(255, 255, 255, 0.15);
+        }
+
+        .log-item.info {
+            color: var(--accent-cyan);
+            border-left-color: var(--accent-cyan);
+        }
+
+        .log-item.warn {
+            color: var(--accent-orange);
+            border-left-color: var(--accent-orange);
+        }
+
+        @keyframes logFade {
+            0% { opacity: 0; transform: translateX(10px); }
+            100% { opacity: 1; transform: translateX(0); }
+        }
+
+        /* Custom Markers for dispatch map */
+        .dispatch-truck-marker {
+            position: relative;
+            width: 32px;
+            height: 32px;
+            background: var(--accent-orange);
+            border: 2px solid white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 15px rgba(249, 115, 22, 0.6);
+            animation: truckPulse 2.5s infinite;
+        }
+
+        .dispatch-truck-marker svg {
+            width: 16px;
+            height: 16px;
+            fill: white;
+        }
+
+        @keyframes truckPulse {
+            0% { box-shadow: 0 0 0 0 rgba(249, 115, 22, 0.6); }
+            70% { box-shadow: 0 0 0 12px rgba(249, 115, 22, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(249, 115, 22, 0); }
+        }
+
+        /* Generic custom Leaflet map markers */
+        .custom-pin-base {
+            width: 28px;
+            height: 28px;
+            border-radius: 50% 50% 50% 0;
+            background: var(--accent-green);
+            position: absolute;
+            transform: rotate(-45deg);
+            left: 50%;
+            top: 50%;
+            margin: -14px 0 0 -14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: -2px 2px 6px rgba(0,0,0,0.4);
+            border: 1px solid rgba(255,255,255,0.25);
+        }
+
+        .custom-pin-base::after {
+            content: '';
+            width: 12px;
+            height: 12px;
+            background: var(--bg-color);
+            border-radius: 50%;
+            position: absolute;
+        }
+
+        .custom-pin-stop {
+            width: 24px;
+            height: 24px;
+            border-radius: 50% 50% 50% 0;
+            background: linear-gradient(135deg, var(--accent-indigo), #7c3aed);
+            position: absolute;
+            transform: rotate(-45deg);
+            left: 50%;
+            top: 50%;
+            margin: -12px 0 0 -12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: -2px 2px 6px rgba(0,0,0,0.4);
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+
+        .custom-pin-stop span {
+            transform: rotate(45deg);
+            color: white;
+            font-weight: 800;
+            font-size: 0.65rem;
+            z-index: 2;
+        }
+
+        /* Empty Onboarding Card */
+        .empty-dispatch-card {
+            border: 2px dashed rgba(255,255,255,0.06);
+            border-radius: 16px;
+            padding: 30px 20px;
+            text-align: center;
+            color: var(--text-dim);
+            font-size: 0.75rem;
+        }
+
+        .empty-dispatch-card svg {
+            stroke: var(--text-dim);
+            margin-bottom: 12px;
+            opacity: 0.4;
+        }
+
+        /* Centering Dispatch Buttons */
+        .dispatch-btn {
+            background: linear-gradient(135deg, var(--accent-cyan), var(--accent-indigo));
+            border: none;
+            color: white;
+            font-size: 0.75rem;
+            font-weight: 700;
+            padding: 10px 16px;
+            border-radius: 10px;
+            cursor: pointer;
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            box-shadow: 0 4px 15px rgba(6, 182, 212, 0.2);
+            transition: all 0.2s;
+        }
+
+        .dispatch-btn:hover {
+            transform: translateY(-1.5px);
+            box-shadow: 0 6px 20px rgba(6, 182, 212, 0.35);
+        }
+
+        /* Estilos de Emergencia S.O.S */
+        .dispatch-truck-marker.sos-active {
+            background: #ef4444 !important;
+            box-shadow: 0 0 25px #ef4444 !important;
+            animation: sosMarkerPulse 0.8s infinite !important;
+        }
+
+        @keyframes sosMarkerPulse {
+            0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.8); }
+            50% { transform: scale(1.25); box-shadow: 0 0 0 15px rgba(239, 68, 68, 0); }
+            100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+        }
+
+        .vehicle-card.sos-active {
+            border-color: #ef4444 !important;
+            background: rgba(239, 68, 68, 0.05) !important;
+            box-shadow: 0 0 20px rgba(239, 68, 68, 0.3) !important;
+            animation: vehicleSosPulse 1.2s infinite;
+        }
+
+        @keyframes vehicleSosPulse {
+            0% { border-color: rgba(239, 68, 68, 0.4); }
+            50% { border-color: rgba(239, 68, 68, 1); }
+            100% { border-color: rgba(239, 68, 68, 0.4); }
+        }
+
+        .log-item.critical {
+            color: #ef4444;
+            border-left-color: #ef4444;
+            background: rgba(239, 68, 68, 0.04);
+            font-weight: 800;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Ambient glows -->
+    <div class="ambient-glow glow-top-left"></div>
+
+    <!-- Map Element -->
+    <div id="map"></div>
+
+    <!-- LEFT PANEL: MONITOREO -->
+    <div class="panel-container left-panel">
+        <div class="glass-card" style="display: flex; flex-direction: column; height: 100%;">
+            <div class="panel-header">
+                <img src="assets/logo.svg" alt="Logo" class="brand-logo">
+                <div style="flex: 1;">
+                    <h1 class="brand-title">GUARNIERI</h1>
+                    <span class="brand-subtitle">FLEET DESPATCH</span>
+                </div>
+                <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 6px;">
+                    <div id="centralStatusBadge" class="online-status-indicator offline">
+                        <span class="status-dot offline" id="centralStatusDot"></span> <span id="centralStatusText">Desconectado</span>
+                    </div>
+                    <button onclick="logoutCentral()" style="background: rgba(239, 68, 68, 0.2); color: #ef4444; padding: 5px 10px; font-size: 0.65rem; border-radius: 8px; border: none; cursor: pointer; font-weight: 600; transition: all 0.2s; width: fit-content; text-transform: uppercase; letter-spacing: 0.5px;">Salir</button>
+                </div>
+            </div>
+            
+            <div class="panel-body">
+                
+                <!-- VEHICLE CARD -->
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+                    <span class="log-title">Vehículo de Reparto</span>
+                    <div class="vehicle-card" id="vehicleCard">
+                        <div class="vehicle-header">
+                            <span class="vehicle-title" style="color: var(--accent-orange);">🚛 Móvil 01 (Admin)</span>
+                            <span id="vehicleActiveLabel" style="font-size: 0.6rem; font-weight: 800; background: rgba(255,255,255,0.05); padding: 2px 6px; border-radius: 4px; color: var(--text-dim);">INACTIVO</span>
+                        </div>
+                        <div class="vehicle-param">
+                            <span class="param-label">Conductor</span>
+                            <span class="param-value" id="valDriver">-</span>
+                        </div>
+                        <div class="vehicle-param">
+                            <span class="param-label">Coordenadas</span>
+                            <span class="param-value" style="font-family: monospace;" id="valCoords">-</span>
+                        </div>
+                        <div class="vehicle-param">
+                            <span class="param-label">Progreso de Paradas</span>
+                            <span class="param-value" id="valProgress">-</span>
+                        </div>
+                        <div class="vehicle-param">
+                            <span class="param-label">Último Reporte Satelital</span>
+                            <span class="param-value" style="color: var(--accent-cyan);" id="valLastReport">-</span>
+                        </div>
+                        
+                        <div style="margin-top: 4px;" id="centerBtnContainer">
+                            <!-- Injected dynamically -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- STOP PROGRESS LIST -->
+                <div style="display: flex; flex-direction: column; gap: 8px; flex: 1;">
+                    <span class="log-title">Itinerario y Recorrido</span>
+                    <div id="stopsListContainer" style="overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 8px;">
+                        <!-- Onboarding State -->
+                        <div class="empty-dispatch-card">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 17V7l7 5z"/></svg>
+                            <p>Esperando telemetría del vehículo para cargar el itinerario...</p>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- RIGHT PANEL: REGISTRO DE TELEMETRÍA -->
+    <div class="panel-container right-panel">
+        <div class="glass-card" style="display: flex; flex-direction: column; height: 100%;">
+            <div class="event-log-container">
+                <span class="log-title">Registro de Telemetría (Live)</span>
+                <div class="log-feed" id="logFeed">
+                    <div class="log-item neutral">[CENTRAL] Iniciando consola de monitoreo...</div>
+                    <div class="log-item neutral">[CENTRAL] Escuchando enlace satelital en canal fleet_telemetry_admin...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let map;
+        let vehicleMarker = null;
+        let baseMarker = null;
+        let stopMarkers = [];
+        let routeLine = null;
+        let routeLineGlow = null;
+        
+        let lastKnownTelemetry = null;
+
+        function initMap() {
+            // Inicializar mapa en una posición por defecto (Buenos Aires/Mundo)
+            map = L.map('map', {
+                zoomControl: false,
+                attributionControl: false
+            }).setView([-34.6037, -58.3816], 13);
+
+            // Capa de mapa oscura premium
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                maxZoom: 20
+            }).addTo(map);
+
+            // Reposicionar el control de zoom para que no lo tapen los paneles
+            L.control.zoom({
+                position: 'bottomright'
+            }).addTo(map);
+        }
+
+        function appendLog(text, type = 'neutral') {
+            const feed = document.getElementById('logFeed');
+            const item = document.createElement('div');
+            const time = new Date().toLocaleTimeString();
+            item.className = `log-item ${type}`;
+            item.innerText = `[${time}] ${text}`;
+            feed.appendChild(item);
+            feed.scrollTop = feed.scrollHeight;
+        }
+
+        // Procesar cambios en telemetría local
+        function processTelemetry(data) {
+            if (!data) return;
+
+            const isNewActive = !lastKnownTelemetry || lastKnownTelemetry.lastUpdate !== data.lastUpdate;
+            lastKnownTelemetry = data;
+
+            // 1. Actualizar estado de red
+            const centralBadge = document.getElementById('centralStatusBadge');
+            const centralDot = document.getElementById('centralStatusDot');
+            const centralText = document.getElementById('centralStatusText');
+            
+            if (data.isOnline) {
+                centralBadge.className = "online-status-indicator online";
+                centralDot.className = "status-dot online";
+                centralText.innerText = "Sincronizado";
+            } else {
+                centralBadge.className = "online-status-indicator offline";
+                centralDot.className = "status-dot offline";
+                centralText.innerText = "Desconectado";
+            }
+
+            // 2. Actualizar tarjetas del vehículo
+            document.getElementById('valDriver').innerText = data.username || '-';
+            
+            if (data.lat && data.lon) {
+                document.getElementById('valCoords').innerText = `${data.lat.toFixed(5)}, ${data.lon.toFixed(5)}`;
+            } else {
+                document.getElementById('valCoords').innerText = 'Sin señal GPS';
+            }
+            
+            const totalStops = data.stops ? data.stops.length : 0;
+            const completedStops = data.stops ? data.stops.filter(s => s.completed).length : 0;
+            document.getElementById('valProgress').innerText = `${completedStops} / ${totalStops} paradas`;
+            document.getElementById('valLastReport').innerText = data.lastUpdate || '-';
+
+            const activeLabel = document.getElementById('vehicleActiveLabel');
+            const vCard = document.getElementById('vehicleCard');
+            
+            if (data.isSos) {
+                activeLabel.innerText = "🚨 EMERGENCIA S.O.S";
+                activeLabel.style.color = "#ef4444";
+                activeLabel.style.background = "rgba(239, 68, 68, 0.15)";
+                vCard.classList.add('sos-active');
+            } else {
+                vCard.classList.remove('sos-active');
+                if (data.isNavigating) {
+                    activeLabel.innerText = "EN RUTA";
+                    activeLabel.style.color = "var(--accent-cyan)";
+                    activeLabel.style.background = "rgba(6, 182, 212, 0.15)";
+                } else if (data.routeActive) {
+                    activeLabel.innerText = "LISTO";
+                    activeLabel.style.color = "var(--accent-green)";
+                    activeLabel.style.background = "rgba(16, 185, 129, 0.15)";
+                } else {
+                    activeLabel.innerText = "INACTIVO";
+                    activeLabel.style.color = "var(--text-dim)";
+                    activeLabel.style.background = "rgba(255,255,255,0.05)";
+                }
+            }
+
+            // Inyectar botón de centrado si hay coordenadas
+            const centerBtnContainer = document.getElementById('centerBtnContainer');
+            if (data.lat && data.lon && centerBtnContainer.innerHTML === '') {
+                centerBtnContainer.innerHTML = `
+                    <button onclick="centerOnVehicle()" class="dispatch-btn">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg>
+                        Centrar Mapa en Móvil 01
+                    </button>
+                `;
+            } else if ((!data.lat || !data.lon) && centerBtnContainer.innerHTML !== '') {
+                centerBtnContainer.innerHTML = '';
+            }
+
+            // 3. Dibujar mapa (Marcador camión, paradas, ruta)
+            renderMapTelemetry(data, isNewActive);
+
+            // 4. Renderizar Itinerario en la lista lateral
+            renderStopsList(data);
+        }
+
+        function renderMapTelemetry(data, isNewActive) {
+            // A. Dibujar el camión
+            if (data.lat && data.lon) {
+                const pos = [data.lat, data.lon];
+                const sosClass = data.isSos ? 'dispatch-truck-marker sos-active' : 'dispatch-truck-marker';
+                
+                if (!vehicleMarker) {
+                    vehicleMarker = L.marker(pos, {
+                        icon: L.divIcon({
+                            className: 'custom-div-icon',
+                            html: `
+                                <div class="${sosClass}">
+                                    <svg viewBox="0 0 24 24">
+                                        <path d="M20 8h-3V4H3c-1.1 0-2 .9-2 2v11h2c0 1.66 1.34 3 3 3s3-1.34 3-3h6c0 1.66 1.34 3 3 3s3-1.34 3-3h2v-5l-3-4zM6 18.5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm12 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm2-5.5h-3V9h3v4z"/>
+                                    </svg>
+                                </div>
+                            `,
+                            iconSize: [32, 32],
+                            iconAnchor: [16, 16]
+                        })
+                    }).addTo(map);
+                    
+                    if (isNewActive) {
+                        appendLog(`🚛 Vehículo 'Móvil 01' detectado en mapa por primera vez.`, 'info');
+                        map.setView(pos, 15);
+                    }
+                } else {
+                    vehicleMarker.setIcon(L.divIcon({
+                        className: 'custom-div-icon',
+                        html: `
+                            <div class="${sosClass}">
+                                <svg viewBox="0 0 24 24">
+                                    <path d="M20 8h-3V4H3c-1.1 0-2 .9-2 2v11h2c0 1.66 1.34 3 3 3s3-1.34 3-3h6c0 1.66 1.34 3 3 3s3-1.34 3-3h2v-5l-3-4zM6 18.5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm12 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm2-5.5h-3V9h3v4z"/>
+                                </svg>
+                            </div>
+                        `,
+                        iconSize: [32, 32],
+                        iconAnchor: [16, 16]
+                    }));
+
+                    const oldPos = vehicleMarker.getLatLng();
+                    if (oldPos.lat !== data.lat || oldPos.lng !== data.lon) {
+                        vehicleMarker.setLatLng(pos);
+                        if (data.isNavigating) {
+                            map.panTo(pos);
+                        }
+                        if (isNewActive) {
+                            appendLog(`📡 Telemetría recibida: Móvil 01 se desplazó a [${data.lat.toFixed(5)}, ${data.lon.toFixed(5)}]`, 'neutral');
+                        }
+                    }
+                }
+            } else if (vehicleMarker) {
+                map.removeLayer(vehicleMarker);
+                vehicleMarker = null;
+                appendLog(`⚠️ Conexión satelital del GPS perdida con Móvil 01.`, 'warn');
+            }
+
+            // B. Dibujar base de salida
+            if (data.origin) {
+                const basePos = [data.origin.lat, data.origin.lon];
+                if (!baseMarker) {
+                    baseMarker = L.marker(basePos, {
+                        icon: L.divIcon({
+                            className: 'custom-div-icon',
+                            html: `<div class="custom-pin-base"></div>`,
+                            iconSize: [28, 28],
+                            iconAnchor: [14, 28]
+                        })
+                    }).addTo(map);
+                } else {
+                    baseMarker.setLatLng(basePos);
+                }
+            } else if (baseMarker) {
+                map.removeLayer(baseMarker);
+                baseMarker = null;
+            }
+
+            // C. Dibujar marcadores de entregas
+            stopMarkers.forEach(m => map.removeLayer(m));
+            stopMarkers = [];
+            
+            if (data.stops && data.stops.length > 0) {
+                data.stops.forEach((stop, index) => {
+                    const stopPos = [stop.lat, stop.lon];
+                    const pinColor = stop.completed ? '#10b981' : (index === data.currentTargetIndex && data.isNavigating ? '#06b6d4' : '#4f46e5');
+                    
+                    const marker = L.marker(stopPos, {
+                        icon: L.divIcon({
+                            className: 'custom-div-icon',
+                            html: `
+                                <div class="custom-pin-stop" style="background: ${pinColor}">
+                                    <span>${index + 1}</span>
+                                </div>
+                            `,
+                            iconSize: [24, 24],
+                            iconAnchor: [12, 24]
+                        })
+                    }).addTo(map);
+                    
+                    marker.bindPopup(`<b>Entrega ${index + 1}</b><br>${stop.name}<br>Estado: ${stop.completed ? 'Completado' : 'Pendiente'}`);
+                    stopMarkers.push(marker);
+                });
+            }
+
+            // D. Trazar líneas de ruta entre paradas
+            if (routeLine) map.removeLayer(routeLine);
+            if (routeLineGlow) map.removeLayer(routeLineGlow);
+            
+            if (data.origin && data.stops && data.stops.length > 0) {
+                const coords = [[data.origin.lat, data.origin.lon]];
+                data.stops.forEach(s => coords.push([s.lat, s.lon]));
+                
+                routeLineGlow = L.polyline(coords, {
+                    color: '#06b6d4',
+                    weight: 8,
+                    opacity: 0.15,
+                    dashArray: '5, 10'
+                }).addTo(map);
+                
+                routeLine = L.polyline(coords, {
+                    color: '#4f46e5',
+                    weight: 4,
+                    opacity: 0.5,
+                    dashArray: '5, 10'
+                }).addTo(map);
+            }
+        }
+
+        function renderStopsList(data) {
+            const container = document.getElementById('stopsListContainer');
+            
+            if (!data.origin && (!data.stops || data.stops.length === 0)) {
+                container.innerHTML = `
+                    <div class="empty-dispatch-card">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 17V7l7 5z"/></svg>
+                        <p>Esperando telemetría del vehículo para cargar el itinerario...</p>
+                    </div>
+                `;
+                return;
+            }
+
+            let html = '';
+
+            // Render Base de Salida
+            if (data.origin) {
+                html += `
+                    <div class="route-stop-item">
+                        <div class="stop-circle base">🏠</div>
+                        <div style="flex: 1;">
+                            <div style="font-weight: 700; color: white; font-size: 0.8rem;">PUNTO DE PARTIDA (BASE)</div>
+                            <div style="color: var(--text-dim); font-size: 0.7rem; margin-top: 2px;">${data.origin.name}</div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            // Render Paradas
+            if (data.stops && data.stops.length > 0) {
+                data.stops.forEach((stop, index) => {
+                    let circleClass = 'pending';
+                    let statusLabel = '⏳ Pendiente';
+                    let statusColor = 'var(--text-dim)';
+                    
+                    if (stop.completed) {
+                        circleClass = 'completed';
+                        statusLabel = '✅ Completado';
+                        statusColor = 'var(--accent-green)';
+                    } else if (index === data.currentTargetIndex && data.isNavigating) {
+                        circleClass = 'active';
+                        statusLabel = '🚚 Entrega en Camino';
+                        statusColor = 'var(--accent-cyan)';
+                    }
+
+                    html += `
+                        <div class="route-stop-item" style="${index === data.currentTargetIndex && data.isNavigating ? 'border-color: rgba(6,182,212,0.25); background: rgba(6,182,212,0.02);' : ''}">
+                            <div class="stop-circle ${circleClass}">${index + 1}</div>
+                            <div style="flex: 1;">
+                                <div style="font-weight: 700; color: white; font-size: 0.8rem;">ENTREGA ${index + 1}</div>
+                                <div style="color: var(--text-dim); font-size: 0.7rem; margin-top: 2px;">${stop.name}</div>
+                            </div>
+                            <div style="font-weight: 700; font-size: 0.65rem; color: ${statusColor};">${statusLabel}</div>
+                        </div>
+                    `;
+                });
+            }
+
+            container.innerHTML = html;
+        }
+
+        window.centerOnVehicle = function() {
+            if (lastKnownTelemetry && lastKnownTelemetry.lat && lastKnownTelemetry.lon) {
+                map.setView([lastKnownTelemetry.lat, lastKnownTelemetry.lon], 16, { animate: true });
+                appendLog("🔍 Centrando visor del despacho en Móvil 01.", "neutral");
+            }
+        };
+
+        // Escuchar cambios satelitales (Storage Event)
+        window.addEventListener('storage', (e) => {
+            if (e.key === 'fleet_telemetry_admin') {
+                try {
+                    const data = JSON.parse(e.newValue);
+                    
+                    // Comprobar eventos y cambios de estado para el registro de eventos
+                    if (lastKnownTelemetry) {
+                        if (data.isNavigating && !lastKnownTelemetry.isNavigating) {
+                            appendLog("🚀 Móvil 01 inició GPS de navegación.", "info");
+                        } else if (!data.isNavigating && lastKnownTelemetry.isNavigating) {
+                            appendLog("⏹️ Móvil 01 detuvo navegación GPS.", "warn");
+                        }
+
+                        if (data.currentTargetIndex > lastKnownTelemetry.currentTargetIndex) {
+                            const completedIndex = lastKnownTelemetry.currentTargetIndex;
+                            const stopName = data.stops[completedIndex] ? data.stops[completedIndex].name : '';
+                            appendLog(`✅ Móvil 01 completó la Parada ${completedIndex + 1}: ${stopName}`, "info");
+                        }
+
+                        if (data.stops.length > lastKnownTelemetry.stops.length) {
+                            appendLog(`➕ Planificador: Se añadieron destinos al itinerario (${data.stops.length} paradas).`, "neutral");
+                        }
+
+                        // Alertas de Emergencia SOS
+                        if (data.isSos && !lastKnownTelemetry.isSos) {
+                            appendLog("🚨 [CRÍTICO] MÓVIL 01 ACTIVÓ ALERTA S.O.S - EMERGENCIA EN RUTA", "critical");
+                            speakCentral("¡Atención! El vehículo Móvil 01 ha activado una señal de emergencia S.O.S. Verifique su ubicación en el mapa de inmediato.");
+                        } else if (!data.isSos && lastKnownTelemetry.isSos) {
+                            appendLog("💚 [SISTEMA] Alerta S.O.S cancelada por el conductor.", "info");
+                            speakCentral("Alerta S.O.S del Móvil 01 cancelada.");
+                        }
+                    }
+
+                    processTelemetry(data);
+                } catch (err) {
+                    console.error("Error al procesar el enlace de telemetría:", err);
+                }
+            }
+        });
+
+        window.logoutCentral = function() {
+            if (typeof SpeechSynthesisUtterance !== 'undefined') {
+                const utterance = new SpeechSynthesisUtterance("Cerrando sesión de control. Hasta luego.");
+                utterance.lang = 'es-ES';
+                window.speechSynthesis.speak(utterance);
+            }
+            setTimeout(() => {
+                window.location.href = 'index.html';
+            }, 600);
+        };
+
+        function speakCentral(text) {
+            if (typeof SpeechSynthesisUtterance !== 'undefined') {
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = 'es-ES';
+                window.speechSynthesis.speak(utterance);
+            }
+        }
+
+        window.onload = () => {
+            initMap();
+            
+            // Registrar Service Worker para soporte PWA de Monitoreo
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.register('sw.js')
+                    .then(() => console.log('[PWA] Service Worker registrado para la Central'))
+                    .catch(err => console.error('[PWA] Error al registrar Service Worker', err));
+            }
+            
+            // Carga inicial de datos si ya existen
+            const initialData = localStorage.getItem('fleet_telemetry_admin');
+            if (initialData) {
+                try {
+                    const data = JSON.parse(initialData);
+                    appendLog("📡 Enlace satelital activo. Leyendo telemetría inicial...", "neutral");
+                    processTelemetry(data);
+                } catch(e){}
+            } else {
+                appendLog("⏳ Esperando que el vehículo Móvil 01 inicie sesión y transmita telemetría...", "neutral");
+            }
+        };
+    </script>
+</body>
+</html>
