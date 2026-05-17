@@ -1,8 +1,8 @@
 # 🚚 Correo Service - Sistema Inteligente de Logística y Navegación
 
 <div align="center">
-  <img src="web-app/assets/mockup.png" alt="Correo Service Driver App" width="49%" style="border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.4);" />
-  <img src="web-app/assets/monitoring_mockup.png" alt="Correo Service Monitoring Central" width="49%" style="border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.4);" />
+  <img src="assets/mockup.png" alt="Correo Service Driver App" width="49%" style="border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.4);" />
+  <img src="assets/monitoring_mockup.png" alt="Correo Service Monitoring Central" width="49%" style="border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.4);" />
 </div>
 
 <br>
