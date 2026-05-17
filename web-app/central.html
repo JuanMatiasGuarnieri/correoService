@@ -541,7 +541,10 @@
                     <div id="centralStatusBadge" class="online-status-indicator offline">
                         <span class="status-dot offline" id="centralStatusDot"></span> <span id="centralStatusText">Desconectado</span>
                     </div>
-                    <button onclick="logoutCentral()" style="background: rgba(239, 68, 68, 0.2); color: #ef4444; padding: 5px 10px; font-size: 0.65rem; border-radius: 8px; border: none; cursor: pointer; font-weight: 600; transition: all 0.2s; width: fit-content; text-transform: uppercase; letter-spacing: 0.5px;">Salir</button>
+                    <div style="display: flex; gap: 8px;">
+                        <button onclick="goToUsers()" style="background: rgba(6, 182, 212, 0.15); color: var(--accent-cyan); border: 1px solid rgba(6, 182, 212, 0.35); padding: 5px 10px; font-size: 0.65rem; border-radius: 8px; cursor: pointer; font-weight: 600; transition: all 0.2s; text-transform: uppercase; letter-spacing: 0.5px; box-shadow: 0 2px 10px rgba(6, 182, 212, 0.1);">Usuarios</button>
+                        <button onclick="logoutCentral()" style="background: rgba(239, 68, 68, 0.2); color: #ef4444; padding: 5px 10px; font-size: 0.65rem; border-radius: 8px; border: none; cursor: pointer; font-weight: 600; transition: all 0.2s; text-transform: uppercase; letter-spacing: 0.5px;">Salir</button>
+                    </div>
                 </div>
             </div>
             
@@ -963,12 +966,28 @@
             }
         });
 
+        window.goToUsers = function() {
+            if (typeof SpeechSynthesisUtterance !== 'undefined') {
+                const utterance = new SpeechSynthesisUtterance("Abriendo panel de control de usuarios.");
+                utterance.lang = 'es-ES';
+                window.speechSynthesis.speak(utterance);
+            }
+            setTimeout(() => {
+                window.location.href = 'usuarios.html';
+            }, 500);
+        };
+
         window.logoutCentral = function() {
             if (typeof SpeechSynthesisUtterance !== 'undefined') {
                 const utterance = new SpeechSynthesisUtterance("Cerrando sesión de control. Hasta luego.");
                 utterance.lang = 'es-ES';
                 window.speechSynthesis.speak(utterance);
             }
+            // Limpiar la sesión para evitar auto-login al volver a index.html
+            sessionStorage.removeItem('isLoggedIn');
+            sessionStorage.removeItem('username');
+            sessionStorage.removeItem('userLogin');
+            
             setTimeout(() => {
                 window.location.href = 'index.html';
             }, 600);

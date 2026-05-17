@@ -1,8 +1,9 @@
-const CACHE_NAME = 'correo-service-v3'; // Incrementamos versión para forzar actualización
+const CACHE_NAME = 'correo-service-v4'; // Incrementamos versión para forzar actualización
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
   './central.html',
+  './usuarios.html',
   './manifest.json',
   './manifest-central.json',
   './assets/logo.svg',

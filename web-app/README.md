@@ -45,6 +45,14 @@ Adicionalmente, cuenta con un portal centralizado de despacho que permite a la o
 * **Cifrado SHA-256 Nativo:** Protege ambas pantallas de acceso usando la **Web Crypto API** del navegador. Las credenciales nunca se guardan en texto plano; la validación compara firmas *hash* SHA-256 de una sola vía (ej. el HASH `03ac674216f3...` para la contraseña admin `1234`), garantizando seguridad blindada y firmada por **GUARNIERI NETWORK**.
 * **Experiencia de Formulario Fluida:** Soporte semántico para envío por tecla **Enter**, botones homogeneizados de cierre de sesión (**Salir**) de estilo rojo translúcido, y animación física de sacudida (shake) al ingresar datos incorrectos.
 
+### 👥 Panel de Gestión de Usuarios CRUD (Administración Dinámica)
+* **CRUD Completo de Conductores:** Permite al administrador crear (generar), modificar y eliminar cuentas de conductores y despachadores directamente desde la aplicación sin requerir bases de datos del servidor.
+* **Almacenamiento Local Persistente (`localStorage`):** Los usuarios se guardan en la clave `'fleet_users'`. La aplicación se precarga automáticamente con credenciales por defecto (`admin`, `conductor1`, `conductor2`) si no existen registros.
+* **Integración Satelital Dinámica:** Al iniciar sesión con una cuenta de conductor personalizada, el sistema de telemetría asocia el viaje a su nombre real, mostrándolo en los paneles de la Central de Monitoreo (`central.html`) en lugar del valor genérico "Admin".
+* **Visualización de Contraseñas Ocultas (Efecto Blur):** Un efecto visual premium en la lista de usuarios desenfoca las contraseñas (`filter: blur(4px)`) y las revela instantáneamente al pasar el cursor encima, manteniendo la confidencialidad.
+* **Control de Seguridad y Protección:** Incluye bloqueos lógicos para impedir que se elimine la cuenta del administrador principal (`admin`) y cuenta con un cuadro modal de confirmación de borrado *glassmorphism* de estilo premium.
+* **Navegación e Indicaciones por Voz:** Integra locuciones asincrónicas por voz para indicar operaciones completadas en el panel ("Usuario creado", "Usuario modificado", "Usuario eliminado").
+
 ### 📱 Experiencia PWA & Modo Sin Conexión (Offline-First)
 * **Service Worker (`sw.js`):** La aplicación se instala y ejecuta en segundo plano. Permite cargar el sitio al 100% de manera instantánea incluso en "Modo Avión" o sin cobertura telefónica.
 * **Caché Inteligente de Mapas (On-the-Fly Tile Caching):** El Service Worker intercepta y almacena localmente los segmentos de mapa oscuro que el chofer carga durante su estancia en la base. Las calles se ven perfectamente sin internet.
@@ -100,13 +108,14 @@ Debido a que es una aplicación estática autoprotegida y PWA:
 
 ## 📖 Guía de Uso
 
-1. **Inicio de Sesión:** Ingresa tus credenciales en la pantalla de bienvenida (usuario `admin` / clave `1234`). Puedes presionar la tecla **Enter** para entrar.
+1. **Inicio de Sesión:** Ingresa tus credenciales en la pantalla de bienvenida (usuario `admin` / clave `1234`). Puedes presionar la tecla **Enter** para entrar o utilizar cualquiera de las cuentas de conductor registradas.
 2. **Establecer Base:** Escribe la dirección en "Punto de Partida" y selecciona una sugerencia del panel de autocompletado.
 3. **Agregar Destinos:** Añade todas las entregas usando las sugerencias inteligentes de dirección y presiona `+`.
 4. **Guardar Ruta:** Si planeas salir a una zona de mala señal, haz click en **Guardar Ruta** para persistir el viaje localmente.
 5. **Optimizar:** Presiona el botón flotante "Optimizar Ruta" para trazar el camino más corto y glowing neón por las calles.
 6. **Navegar:** Presiona "Iniciar GPS" para activar el modo de conducción. Sigue las instrucciones de voz hasta completar tus entregas.
 7. **Monitorear (Central):** Abre `central.html` en una pestaña secundaria o en una pantalla dividida para ver al chofer moverse y completar las paradas en vivo.
+8. **Gestión de Usuarios (Admin):** Haz clic en el botón **Usuarios** en la cabecera de la Central para ingresar a `usuarios.html`. Desde allí podrás añadir nuevos choferes con contraseñas personalizadas, editarlos o darlos de baja.
 
 ---
 
@@ -143,6 +152,9 @@ graph TD
         TEL_R --> C_UI[Itinerario & Sidebar Stats]
         TEL_R --> C_LOG[Live Log Feed Terminal]
         TEL_R --> C_VOX[Central Speech Synthesis Alarm]
+        C_HTML --> U_HTML[usuarios.html Panel CRUD]
+        U_HTML --> |"Agrega/Modifica/Elimina"| G_USERS[(localStorage: fleet_users)]
+        G_USERS --> |"Autentica"| A
     end
 ```
 

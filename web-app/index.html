@@ -1420,8 +1420,9 @@
         }
 
         function syncTelemetry(lat = null, lon = null) {
-            const user = sessionStorage.getItem('isLoggedIn') === 'true' ? 'Admin' : null;
-            if (!user) return; // Si no ha iniciado sesión, no reporta
+            if (sessionStorage.getItem('isLoggedIn') !== 'true') return;
+            const user = sessionStorage.getItem('username') || 'Móvil 01';
+            const userLogin = sessionStorage.getItem('userLogin') || 'admin';
 
             // Obtener coordenadas de usuario
             let currentLat = lat;
@@ -1436,7 +1437,7 @@
             }
 
             const telemetry = {
-                username: user,
+                username: `${user} (${userLogin})`,
                 lat: currentLat,
                 lon: currentLon,
                 isOnline: navigator.onLine,
@@ -1700,6 +1701,9 @@
             
             if (passHash === targetPassHash) {
                 speak("Acceso de administrador autorizado. Abriendo consola central.");
+                sessionStorage.setItem('isLoggedIn', 'true');
+                sessionStorage.setItem('username', 'Administrador');
+                sessionStorage.setItem('userLogin', 'admin');
                 closeAdminPrompt();
                 setTimeout(() => {
                     window.location.href = 'central.html';
@@ -1765,21 +1769,34 @@
             const user = document.getElementById('userInput').value;
             const pass = document.getElementById('passInput').value;
             
-            // HASHES DE CREDENCIALES SEGUROS (SHA-256)
-            // admin -> 8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918
-            // 1234  -> 03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4
-            const targetUserHash = '8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918';
-            const targetPassHash = '03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4';
+            // Cargar usuarios de localStorage o inicializar por defecto
+            let users = [];
+            try {
+                const stored = localStorage.getItem('fleet_users');
+                if (stored) {
+                    users = JSON.parse(stored);
+                } else {
+                    users = [
+                        { username: 'admin', name: 'Administrador', password: '1234' },
+                        { username: 'conductor1', name: 'Juan Pérez', password: '1234' },
+                        { username: 'conductor2', name: 'María Gómez', password: '1234' }
+                    ];
+                    localStorage.setItem('fleet_users', JSON.stringify(users));
+                }
+            } catch (e) {
+                console.error("Error al cargar usuarios:", e);
+            }
 
-            const userHash = await sha256(user);
-            const passHash = await sha256(pass);
+            // Buscar si el usuario y contraseña coinciden
+            const matchedUser = users.find(u => u.username.toLowerCase() === user.toLowerCase().trim() && u.password === pass);
             
-            if (userHash === targetUserHash && passHash === targetPassHash) {
+            if (matchedUser) {
                 sessionStorage.setItem('isLoggedIn', 'true');
+                sessionStorage.setItem('username', matchedUser.name);
+                sessionStorage.setItem('userLogin', matchedUser.username);
                 
                 // Mostrar mensaje de bienvenida premium (visual y por voz)
-                const capitalizedUser = user.charAt(0).toUpperCase() + user.slice(1);
-                showWelcomeToast(capitalizedUser);
+                showWelcomeToast(matchedUser.name);
                 syncTelemetry();
 
                 const overlay = document.getElementById('loginOverlay');
