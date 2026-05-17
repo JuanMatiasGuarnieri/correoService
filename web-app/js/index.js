@@ -19,7 +19,7 @@ let map;
         let debounceTimeout; // Geocoding autocomplete debounce
         
         // REEMPLAZA ESTO CON TU CLAVE GRATUITA DE OPENROUTESERVICE.ORG
-        const ORS_API_KEY = 'eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjAwYjE5NTQ3MzEzYjRkOTFiNDc3ODQ5M2MzMjA4ZTkwIiwiaCI6Im11cm11cjY0In0='; 
+        const ORS_API_KEY = 'API KEY DE OPENROUTESERVICE'; 
 
         // Inicializar Mapa
         function initMap() {
