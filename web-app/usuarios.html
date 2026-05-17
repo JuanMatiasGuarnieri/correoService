@@ -11,6 +11,24 @@
     <!-- Google Fonts (Outfit) -->
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
     
+    <!-- Firebase Realtime Database -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-database-compat.js"></script>
+    <script>
+        const firebaseConfig = {
+          apiKey: "AIzaSyDsW0BOCa-O90zy2RfuEfLACSBXOHFjwGE",
+          authDomain: "correo-fleet.firebaseapp.com",
+          databaseURL: "https://correo-fleet-default-rtdb.firebaseio.com",
+          projectId: "correo-fleet",
+          storageBucket: "correo-fleet.firebasestorage.app",
+          messagingSenderId: "851994949651",
+          appId: "1:851994949651:web:836e718f630aadf7aaa7e6",
+          measurementId: "G-WN36724L4C"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+    </script>
+    
     <style>
         :root {
             --bg-color: #0b0f19;
@@ -439,11 +457,16 @@
 
         .password-reveal-text {
             filter: blur(4px);
-            transition: filter 0.2s ease;
+            max-width: 80px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            transition: filter 0.2s ease, max-width 0.3s ease;
         }
 
         .password-reveal-wrapper:hover .password-reveal-text {
             filter: blur(0);
+            max-width: 400px;
         }
 
         /* User action buttons */
@@ -741,6 +764,24 @@
         // Variable para controlar usuario a borrar
         let deleteTargetUsername = '';
 
+        // Funciones de cifrado bidireccional para contraseñas en LocalStorage
+        function cryptPass(text) {
+            if (!text) return '';
+            return 'ENC:' + btoa(encodeURIComponent(text).split('').map(c => String.fromCharCode(c.charCodeAt(0) ^ 88)).join(''));
+        }
+        function decryptPass(text) {
+            if (!text) return '';
+            if (!text.startsWith('ENC:')) return text; // Es texto plano
+            try {
+                const decodedBase64 = atob(text.substring(4));
+                const unxored = decodedBase64.split('').map(c => String.fromCharCode(c.charCodeAt(0) ^ 88)).join('');
+                return decodeURIComponent(unxored);
+            } catch(e) {
+                return text; // Fallback
+            }
+        }
+
+
         // Comprobación de seguridad de sesión al cargar
         function checkAdminSession() {
             // El usuario debe estar autenticado
@@ -751,34 +792,36 @@
             return true;
         }
 
-        // Cargar usuarios de localStorage o inicializar con por defecto
-        function loadUsers() {
+        // Cargar usuarios de Firebase en tiempo real
+        async function loadUsers() {
             try {
-                const stored = localStorage.getItem('fleet_users');
-                if (stored) {
-                    users = JSON.parse(stored);
-                } else {
-                    // Inicializar con valores por defecto
-                    users = [
-                        { username: 'admin', name: 'Administrador', password: '1234' },
-                        { username: 'conductor1', name: 'Juan Pérez', password: '1234' },
-                        { username: 'conductor2', name: 'María Gómez', password: '1234' }
-                    ];
-                    localStorage.setItem('fleet_users', JSON.stringify(users));
-                }
+                database.ref('users').on('value', (snapshot) => {
+                    if (snapshot.exists()) {
+                        users = snapshot.val() || [];
+                    } else {
+                        // Inicializar con valores por defecto en la nube
+                        users = [
+                            { username: 'admin', name: 'Administrador', password: cryptPass('1234') },
+                            { username: 'conductor1', name: 'Juan Pérez', password: cryptPass('1234') },
+                            { username: 'conductor2', name: 'María Gómez', password: cryptPass('1234') }
+                        ];
+                        saveUsersToStorage();
+                    }
+                    renderUsers();
+                });
             } catch (e) {
                 console.error("Error al cargar usuarios:", e);
-                showToast("Error al cargar la base de usuarios", "error");
+                showToast("Error al conectar con la base de datos de usuarios", "error");
             }
         }
 
-        // Guardar usuarios en localStorage
-        function saveUsersToStorage() {
+        // Guardar usuarios en Firebase
+        async function saveUsersToStorage() {
             try {
-                localStorage.setItem('fleet_users', JSON.stringify(users));
+                await database.ref('users').set(users);
             } catch (e) {
                 console.error("Error al guardar usuarios:", e);
-                showToast("Error al guardar cambios en disco", "error");
+                showToast("Error al guardar cambios en la nube", "error");
             }
         }
 
@@ -835,7 +878,7 @@
                                     <span>•</span>
                                     <div class="password-reveal-wrapper">
                                         <span>🔑</span>
-                                        <span class="password-reveal-text" id="reveal-${u.username}">${u.password}</span>
+                                        <span class="password-reveal-text" id="reveal-${u.username}">${decryptPass(u.password)}</span>
                                     </div>
                                 </div>
                             </div>
@@ -856,7 +899,7 @@
         }
 
         // Manejar el submit del formulario
-        function handleFormSubmit() {
+        async function handleFormSubmit() {
             const name = document.getElementById('inputName').value.trim();
             const username = document.getElementById('inputUsername').value.trim().toLowerCase();
             const password = document.getElementById('inputPassword').value;
@@ -871,7 +914,10 @@
                 const userIndex = users.findIndex(u => u.username === editTargetUsername);
                 if (userIndex !== -1) {
                     users[userIndex].name = name;
-                    users[userIndex].password = password;
+                    // Guardar la contraseña encriptada bidireccionalmente
+                    if (password) {
+                        users[userIndex].password = cryptPass(password);
+                    }
                     saveUsersToStorage();
                     speakSystem(`Usuario ${name} modificado correctamente.`);
                     showToast("Usuario modificado con éxito", "success");
@@ -882,6 +928,9 @@
                 }
             } else {
                 // Modo Creación
+                // Cifrar la contraseña ingresada bidireccionalmente
+                const hashedPassword = cryptPass(password);
+                
                 // Comprobar si el username ya existe
                 const exists = users.some(u => u.username === username);
                 if (exists) {
@@ -893,7 +942,7 @@
                 }
 
                 // Crear usuario
-                const newUser = { username, name, password };
+                const newUser = { username, name, password: hashedPassword };
                 users.push(newUser);
                 saveUsersToStorage();
                 speakSystem(`Usuario ${name} creado con éxito.`);
@@ -917,7 +966,8 @@
             document.getElementById('inputName').value = user.name;
             document.getElementById('inputUsername').value = user.username;
             document.getElementById('inputUsername').readOnly = true; // El username es identificador único
-            document.getElementById('inputPassword').value = user.password;
+            document.getElementById('inputPassword').value = decryptPass(user.password);
+            document.getElementById('inputPassword').placeholder = 'Ingresar contraseña';
 
             // Cambiar textos y botones del panel
             document.getElementById('formPanelTitle').innerText = "Modificar Usuario";
@@ -940,6 +990,7 @@
             // Limpiar formulario y quitar solo-lectura
             document.getElementById('userForm').reset();
             document.getElementById('inputUsername').readOnly = false;
+            document.getElementById('inputPassword').placeholder = 'Ingresar contraseña';
 
             // Reestablecer títulos y botones
             document.getElementById('formPanelTitle').innerText = "Crear Nuevo Usuario";
@@ -1069,9 +1120,9 @@
         }
 
         // Inicialización al cargar la ventana
-        window.onload = () => {
+        window.onload = async () => {
             if (checkAdminSession()) {
-                loadUsers();
+                await loadUsers();
                 renderUsers();
                 speakSystem("Panel de gestión de usuarios cargado.");
             }

@@ -18,6 +18,25 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
+    <!-- MQTT Real-Time Communications -->
+    <!-- Firebase Realtime Database -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-database-compat.js"></script>
+    <script>
+        const firebaseConfig = {
+          apiKey: "AIzaSyDsW0BOCa-O90zy2RfuEfLACSBXOHFjwGE",
+          authDomain: "correo-fleet.firebaseapp.com",
+          databaseURL: "https://correo-fleet-default-rtdb.firebaseio.com",
+          projectId: "correo-fleet",
+          storageBucket: "correo-fleet.firebasestorage.app",
+          messagingSenderId: "851994949651",
+          appId: "1:851994949651:web:836e718f630aadf7aaa7e6",
+          measurementId: "G-WN36724L4C"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+    </script>
+
     <style>
         :root {
             --bg-color: #0b0f19;
@@ -925,46 +944,73 @@
             }
         };
 
-        // Escuchar cambios satelitales (Storage Event)
+        function handleIncomingData(data) {
+            // Comprobar eventos y cambios de estado para el registro de eventos
+            if (lastKnownTelemetry) {
+                if (data.isNavigating && !lastKnownTelemetry.isNavigating) {
+                    appendLog("🚀 Móvil 01 inició GPS de navegación.", "info");
+                } else if (!data.isNavigating && lastKnownTelemetry.isNavigating) {
+                    appendLog("⏹️ Móvil 01 detuvo navegación GPS.", "warn");
+                }
+
+                if (data.currentTargetIndex > lastKnownTelemetry.currentTargetIndex) {
+                    const completedIndex = lastKnownTelemetry.currentTargetIndex;
+                    const stopName = data.stops[completedIndex] ? data.stops[completedIndex].name : '';
+                    appendLog(`✅ Móvil 01 completó la Parada ${completedIndex + 1}: ${stopName}`, "info");
+                }
+
+                if (data.stops.length > lastKnownTelemetry.stops.length) {
+                    appendLog(`➕ Planificador: Se añadieron destinos al itinerario (${data.stops.length} paradas).`, "neutral");
+                }
+
+                // Alertas de Emergencia SOS
+                if (data.isSos && !lastKnownTelemetry.isSos) {
+                    appendLog("🚨 [CRÍTICO] MÓVIL 01 ACTIVÓ ALERTA S.O.S - EMERGENCIA EN RUTA", "critical");
+                    speakCentral("¡Atención! El vehículo Móvil 01 ha activado una señal de emergencia S.O.S. Verifique su ubicación en el mapa de inmediato.");
+                } else if (!data.isSos && lastKnownTelemetry.isSos) {
+                    appendLog("💚 [SISTEMA] Alerta S.O.S cancelada por el conductor.", "info");
+                    speakCentral("Alerta S.O.S del Móvil 01 cancelada.");
+                }
+            }
+
+            processTelemetry(data);
+        }
+
+        // Escuchar cambios satelitales localmente (Storage Event - Respaldo)
         window.addEventListener('storage', (e) => {
             if (e.key === 'fleet_telemetry_admin') {
                 try {
-                    const data = JSON.parse(e.newValue);
-                    
-                    // Comprobar eventos y cambios de estado para el registro de eventos
-                    if (lastKnownTelemetry) {
-                        if (data.isNavigating && !lastKnownTelemetry.isNavigating) {
-                            appendLog("🚀 Móvil 01 inició GPS de navegación.", "info");
-                        } else if (!data.isNavigating && lastKnownTelemetry.isNavigating) {
-                            appendLog("⏹️ Móvil 01 detuvo navegación GPS.", "warn");
-                        }
-
-                        if (data.currentTargetIndex > lastKnownTelemetry.currentTargetIndex) {
-                            const completedIndex = lastKnownTelemetry.currentTargetIndex;
-                            const stopName = data.stops[completedIndex] ? data.stops[completedIndex].name : '';
-                            appendLog(`✅ Móvil 01 completó la Parada ${completedIndex + 1}: ${stopName}`, "info");
-                        }
-
-                        if (data.stops.length > lastKnownTelemetry.stops.length) {
-                            appendLog(`➕ Planificador: Se añadieron destinos al itinerario (${data.stops.length} paradas).`, "neutral");
-                        }
-
-                        // Alertas de Emergencia SOS
-                        if (data.isSos && !lastKnownTelemetry.isSos) {
-                            appendLog("🚨 [CRÍTICO] MÓVIL 01 ACTIVÓ ALERTA S.O.S - EMERGENCIA EN RUTA", "critical");
-                            speakCentral("¡Atención! El vehículo Móvil 01 ha activado una señal de emergencia S.O.S. Verifique su ubicación en el mapa de inmediato.");
-                        } else if (!data.isSos && lastKnownTelemetry.isSos) {
-                            appendLog("💚 [SISTEMA] Alerta S.O.S cancelada por el conductor.", "info");
-                            speakCentral("Alerta S.O.S del Móvil 01 cancelada.");
-                        }
-                    }
-
-                    processTelemetry(data);
+                    handleIncomingData(JSON.parse(e.newValue));
                 } catch (err) {
-                    console.error("Error al procesar el enlace de telemetría:", err);
+                    console.error("Error al procesar el enlace local:", err);
                 }
             }
         });
+
+        // Integración de cliente Firebase para Telemetría Global por Internet
+        async function initFirebase() {
+            try {
+                const telemetryRef = database.ref('telemetry/admin_channel');
+                
+                appendLog("🌐 [FIREBASE] Conectando a la red de monitoreo en la nube...", "info");
+                
+                telemetryRef.on('value', (snapshot) => {
+                    if (snapshot.exists()) {
+                        try {
+                            handleIncomingData(snapshot.val());
+                        } catch (err) {
+                            console.error("Error procesando telemetría de Firebase:", err);
+                        }
+                    }
+                });
+                
+                appendLog("✅ [FIREBASE] Enlace satelital global establecido con éxito.", "success");
+            } catch(e) {
+                console.error("No se pudo inicializar Firebase:", e);
+                appendLog("⚠️ [FIREBASE] Error de conexión a la base de datos.", "warn");
+            }
+        }
+        initFirebase();
 
         window.goToUsers = function() {
             if (typeof SpeechSynthesisUtterance !== 'undefined') {

@@ -27,8 +27,8 @@ Adicionalmente, cuenta con un portal centralizado de despacho que permite a la o
 * **Control de Voz Integrado:** Modulación de volumen y silenciado rápido nativo.
 
 ### 🛰️ Central de Monitoreo & Telemetría en Vivo (Control de Flotas)
-* **Enlace Satelital Local:** La app implementa un canal de comunicación en tiempo real (`fleet_telemetry_admin`) que conecta la pantalla del conductor con el portal central.
-* **Portal Dispatch Central (`central.html`):** Una consola premium de pantalla completa para despachadores y oficinas que permite vigilar la ubicación GPS de los camiones, ver itinerarios y recibir alertas en vivo de forma instantánea.
+* **Telemetría Cloud Global (Firebase):** La app implementa un canal de comunicación satelital en tiempo real usando **Google Firebase Realtime Database**. Esto conecta la pantalla del conductor (en la calle) con el portal central (en la oficina) sin importar en qué parte del mundo estén.
+* **Portal Dispatch Central (`central.html`):** Una consola premium de pantalla completa para despachadores y oficinas que permite vigilar la ubicación GPS de los camiones, ver itinerarios y recibir alertas en vivo de forma instantánea a través de WebSockets de Firebase.
 * **Registro de Telemetría Dinámico:** Consola de comandos monoespaciada en la central que transcribe logs de actividad automáticamente (*"Móvil 01 inició GPS"*, *"Móvil 01 completó la Parada 1"*, etc.).
 * **Panel de Estadísticas "Resumen de Jornada":** Al completar la última entrega, la app del conductor despliega un informe corporativo translúcido con efectividad del 100%, paradas completadas, fecha y firma de **GUARNIERI NETWORK**.
 
@@ -42,14 +42,14 @@ Adicionalmente, cuenta con un portal centralizado de despacho que permite a la o
 * **Doble Portal de Acceso Secure (Chofer / Admin):**
   - Acceso Chofer directo con usuario/clave.
   - Puerta de enlace secundaria cian hacia la Consola de Monitoreo de Oficina que solicita la clave de administrador mediante una interfaz modal translúcida enfocada.
-* **Cifrado SHA-256 Nativo:** Protege ambas pantallas de acceso usando la **Web Crypto API** del navegador. Las credenciales nunca se guardan en texto plano; la validación compara firmas *hash* SHA-256 de una sola vía (ej. el HASH `03ac674216f3...` para la contraseña admin `1234`), garantizando seguridad blindada y firmada por **GUARNIERI NETWORK**.
+* **Cifrado Reversible de Doble Vía:** Las contraseñas en la base de datos se almacenan ofuscadas usando una encriptación simétrica personalizada (XOR + Base64). Esto garantiza que no viajen ni se guarden en texto plano, pero permite a los administradores de sistema visualizar de forma transparente la clave original desde el panel de gestión.
 * **Experiencia de Formulario Fluida:** Soporte semántico para envío por tecla **Enter**, botones homogeneizados de cierre de sesión (**Salir**) de estilo rojo translúcido, y animación física de sacudida (shake) al ingresar datos incorrectos.
 
 ### 👥 Panel de Gestión de Usuarios CRUD (Administración Dinámica)
-* **CRUD Completo de Conductores:** Permite al administrador crear (generar), modificar y eliminar cuentas de conductores y despachadores directamente desde la aplicación sin requerir bases de datos del servidor.
-* **Almacenamiento Local Persistente (`localStorage`):** Los usuarios se guardan en la clave `'fleet_users'`. La aplicación se precarga automáticamente con credenciales por defecto (`admin`, `conductor1`, `conductor2`) si no existen registros.
+* **CRUD Completo de Conductores:** Permite al administrador crear, modificar y eliminar cuentas de conductores y despachadores directamente desde la aplicación.
+* **Sincronización Global en la Nube (Firebase):** Toda la base de datos de usuarios se sincroniza en vivo a través de la red satelital de Firebase. Al registrar un nuevo chofer en la Central, la credencial se transfiere al instante a las terminales móviles, resolviendo bloqueos de acceso por caché local.
 * **Integración Satelital Dinámica:** Al iniciar sesión con una cuenta de conductor personalizada, el sistema de telemetría asocia el viaje a su nombre real, mostrándolo en los paneles de la Central de Monitoreo (`central.html`) en lugar del valor genérico "Admin".
-* **Visualización de Contraseñas Ocultas (Efecto Blur):** Un efecto visual premium en la lista de usuarios desenfoca las contraseñas (`filter: blur(4px)`) y las revela instantáneamente al pasar el cursor encima, manteniendo la confidencialidad.
+* **Visualización de Contraseñas Ocultas (Efecto Blur):** La encriptación bidireccional permite desencriptar la contraseña de los choferes en vivo para la administración. Un efecto visual premium en la lista de usuarios las desenfoca (`filter: blur(4px)`) y las revela instantáneamente al pasar el cursor encima, manteniendo la confidencialidad visual.
 * **Control de Seguridad y Protección:** Incluye bloqueos lógicos para impedir que se elimine la cuenta del administrador principal (`admin`) y cuenta con un cuadro modal de confirmación de borrado *glassmorphism* de estilo premium.
 * **Navegación e Indicaciones por Voz:** Integra locuciones asincrónicas por voz para indicar operaciones completadas en el panel ("Usuario creado", "Usuario modificado", "Usuario eliminado").
 
@@ -75,9 +75,10 @@ El proyecto está construido bajo una filosofía de alto rendimiento sin depende
 
 - **Core:** HTML5 Semántico, CSS3 con Variables y Flexbox/Grid (Glassmorphism).
 - **Motor de Mapas:** [Leaflet.js](https://leafletjs.com/) (Versión 1.9.4 nativa en caché).
+- **Base de Datos y Nube:** [Firebase Realtime Database](https://firebase.google.com/) (Para sincronización global en milisegundos).
 - **Servidor de Rutas:** [OpenRouteService API](https://openrouteservice.org/) (Ruteo real).
 - **Geocodificación:** [Nominatim (OpenStreetMap)](https://nominatim.org/).
-- **Criptografía:** [Web Crypto API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Crypto_API) (Algoritmo SHA-256 asincrónico).
+- **Criptografía:** Algoritmos simétricos de transformación binaria (XOR Base64) integrados.
 - **Service Worker:** API nativa de PWAs para caché de tiles y recursos offline.
 - **Motor de Voz:** [Web Speech API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Speech_API).
 - **Estilo de Mapa:** CartoDB Dark Matter (Optimizado para legibilidad y ahorro de batería).
@@ -131,11 +132,10 @@ graph TD
         A --> SW[Service Worker sw.js]
         SW --> |Caché local offline| B
         SW --> |Caché local offline| C
-        A --> CRY[Web Crypto API SHA-256]
+        A --> CRY[XOR Base64 Crypto]
         B --> D[OpenRouteService API]
         B --> E[Nominatim Autocomplete]
         A --> F[Voice Engine]
-        A --> G[Persistence Manager localStorage]
         D --> H[Turn-by-Turn Logic]
         H --> F
         A --> SOS[S.O.S Panic Button]
@@ -143,18 +143,21 @@ graph TD
         SOS --> |"isSos = true"| TEL
     end
     
-    TEL --> |"Canal satelital (Storage Events)"| TEL_R
+    subgraph Google Cloud Platform
+        FB[(Firebase Realtime Database)]
+        TEL --> |"WSS JSON Publish"| FB
+    end
     
     subgraph Consola Central Dispatcher Desktop
         C_HTML[central.html] --> C_MAP[Leaflet Map Dispatch]
-        C_HTML --> TEL_R[Telemetry Receiver]
+        FB --> |"WSS JSON Subscribe"| TEL_R[Telemetry Receiver]
         TEL_R --> C_MAP
         TEL_R --> C_UI[Itinerario & Sidebar Stats]
         TEL_R --> C_LOG[Live Log Feed Terminal]
         TEL_R --> C_VOX[Central Speech Synthesis Alarm]
         C_HTML --> U_HTML[usuarios.html Panel CRUD]
-        U_HTML --> |"Agrega/Modifica/Elimina"| G_USERS[(localStorage: fleet_users)]
-        G_USERS --> |"Autentica"| A
+        U_HTML --> |"CRUD en la Nube"| FB
+        FB --> |"Sincronización Automática"| A
     end
 ```
 

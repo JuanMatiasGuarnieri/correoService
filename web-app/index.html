@@ -20,6 +20,25 @@
     <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
     
+    <!-- MQTT Real-Time Communications -->
+    <!-- Firebase Realtime Database -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-database-compat.js"></script>
+    <script>
+        const firebaseConfig = {
+          apiKey: "AIzaSyDsW0BOCa-O90zy2RfuEfLACSBXOHFjwGE",
+          authDomain: "correo-fleet.firebaseapp.com",
+          databaseURL: "https://correo-fleet-default-rtdb.firebaseio.com",
+          projectId: "correo-fleet",
+          storageBucket: "correo-fleet.firebasestorage.app",
+          messagingSenderId: "851994949651",
+          appId: "1:851994949651:web:836e718f630aadf7aaa7e6",
+          measurementId: "G-WN36724L4C"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+    </script>
+    
     <style>
         :root {
             --primary: #4f46e5;
@@ -1419,7 +1438,7 @@
             return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
         }
 
-        function syncTelemetry(lat = null, lon = null) {
+        async function syncTelemetry(lat = null, lon = null) {
             if (sessionStorage.getItem('isLoggedIn') !== 'true') return;
             const user = sessionStorage.getItem('username') || 'Móvil 01';
             const userLogin = sessionStorage.getItem('userLogin') || 'admin';
@@ -1456,7 +1475,13 @@
                 lastUpdate: new Date().toLocaleTimeString()
             };
 
-            localStorage.setItem('fleet_telemetry_admin', JSON.stringify(telemetry));
+            const payload = JSON.stringify(telemetry);
+            
+            // 1. Guardar local (modo offline/respaldo)
+            localStorage.setItem('fleet_telemetry_admin', payload);
+            
+            // 2. Transmitir en vivo a Firebase
+            database.ref('telemetry/admin_channel').set(telemetry).catch(e => console.error(e));
         }
 
         window.toggleSOS = function() {
@@ -1765,30 +1790,55 @@
             }, 3500);
         }
 
+        // Funciones de cifrado bidireccional para contraseñas en LocalStorage
+        function cryptPass(text) {
+            if (!text) return '';
+            return 'ENC:' + btoa(encodeURIComponent(text).split('').map(c => String.fromCharCode(c.charCodeAt(0) ^ 88)).join(''));
+        }
+        function decryptPass(text) {
+            if (!text) return '';
+            if (!text.startsWith('ENC:')) return text; // Es texto plano
+            try {
+                const decodedBase64 = atob(text.substring(4));
+                const unxored = decodedBase64.split('').map(c => String.fromCharCode(c.charCodeAt(0) ^ 88)).join('');
+                return decodeURIComponent(unxored);
+            } catch(e) {
+                return text; // Fallback
+            }
+        }
+
         async function handleLogin() {
             const user = document.getElementById('userInput').value;
             const pass = document.getElementById('passInput').value;
             
-            // Cargar usuarios de localStorage o inicializar por defecto
+            // Descargar usuarios desde Firebase en tiempo real
             let users = [];
             try {
-                const stored = localStorage.getItem('fleet_users');
-                if (stored) {
-                    users = JSON.parse(stored);
+                const snapshot = await database.ref('users').once('value');
+                if (snapshot.exists()) {
+                    users = snapshot.val();
+                    localStorage.setItem('fleet_users', JSON.stringify(users)); // Respaldo local offline
                 } else {
+                    // Si no existen en la nube (primer inicio), crearlos
                     users = [
-                        { username: 'admin', name: 'Administrador', password: '1234' },
-                        { username: 'conductor1', name: 'Juan Pérez', password: '1234' },
-                        { username: 'conductor2', name: 'María Gómez', password: '1234' }
+                        { username: 'admin', name: 'Administrador', password: cryptPass('1234') },
+                        { username: 'conductor1', name: 'Juan Pérez', password: cryptPass('1234') },
+                        { username: 'conductor2', name: 'María Gómez', password: cryptPass('1234') }
                     ];
+                    await database.ref('users').set(users);
                     localStorage.setItem('fleet_users', JSON.stringify(users));
                 }
             } catch (e) {
-                console.error("Error al cargar usuarios:", e);
+                console.error("Error al conectar con Firebase (usando caché local):", e);
+                const stored = localStorage.getItem('fleet_users');
+                if (stored) users = JSON.parse(stored);
             }
 
+            // Encriptar la contraseña ingresada con el cifrado bidireccional
+            const passEncoded = cryptPass(pass);
+
             // Buscar si el usuario y contraseña coinciden
-            const matchedUser = users.find(u => u.username.toLowerCase() === user.toLowerCase().trim() && u.password === pass);
+            const matchedUser = users.find(u => u.username.toLowerCase() === user.toLowerCase().trim() && u.password === passEncoded);
             
             if (matchedUser) {
                 sessionStorage.setItem('isLoggedIn', 'true');
@@ -1812,7 +1862,7 @@
             }
         }
 
-        function logout() {
+        async function logout() {
             isSos = false;
             // Indicar desconexión en telemetría antes de limpiar sesión
             const telemetry = JSON.parse(localStorage.getItem('fleet_telemetry_admin') || '{}');
@@ -1820,7 +1870,10 @@
                 telemetry.isOnline = false;
                 telemetry.isSos = false;
                 telemetry.lastUpdate = new Date().toLocaleTimeString();
-                localStorage.setItem('fleet_telemetry_admin', JSON.stringify(telemetry));
+                const payload = JSON.stringify(telemetry);
+                localStorage.setItem('fleet_telemetry_admin', payload);
+                // Transmitir desconexión a Firebase
+                database.ref('telemetry/admin_channel').set(telemetry).catch(e => console.error(e));
             }
             sessionStorage.removeItem('isLoggedIn');
             const overlay = document.getElementById('loginOverlay');
